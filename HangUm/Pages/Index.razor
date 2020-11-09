@@ -1,0 +1,230 @@
+﻿@page "/"
+
+@inject IJSRuntime JSRuntime;
+@*@inject HangUm.Services.TimerService timer*@
+
+@using Microsoft.AspNetCore.Components.Web
+
+<div @onkeydown="@KeyDown" tabindex="0" @ref="myDiv" class="main-container">
+
+        <h1>Hangman</h1>
+        <p>Find the hidden word - Enter a letter</p>
+        <div class="game-container">
+            <svg height="250" width="200" class="figure-container">
+                <!-- Rod -->
+                <line x1="60" y1="20" x2="140" y2="20" />
+                <line x1="140" y1="20" x2="140" y2="50" />
+                <line x1="60" y1="20" x2="60" y2="230" />
+                <line x1="20" y1="230" x2="100" y2="230" />
+                @if (!string.IsNullOrEmpty(badGuess))
+                {
+                    <!-- Head -->
+                    <circle cx="140" cy="70" r="20" class="@SetBodyState(1)" />
+                    <!-- Body -->
+                    <line x1="140" y1="90" x2="140" y2="150" class="@SetBodyState(2)" />
+                    //Arms
+                    <line x1="140" y1="120" x2="120" y2="100" class="@SetBodyState(3)" />
+                    <line x1="140" y1="120" x2="160" y2="100" class="@SetBodyState(4)" />
+                    //Legs
+                    <line x1="140" y1="150" x2="120" y2="180" class="@SetBodyState(5)" />
+                    <line x1="140" y1="150" x2="160" y2="180" class="@SetBodyState(6)" />
+                }
+            </svg>
+
+            <div class="wrong-letters-container">
+                <p>Wrong :</p>
+                <div id="wrong-letters">@badGuess</div>
+            </div>
+
+            <div class="word" id="word">
+                @if (string.IsNullOrWhiteSpace(guess))
+                {
+                    @foreach (char c in word)
+                    {
+                        <span class="letter">
+                        </span>
+                    }
+                }
+                else
+                {
+                    @foreach (char c in guess)
+                    {
+                        <span class="letter">
+                            @c
+                        </span>
+                    }
+                }
+            </div>
+
+
+            <!-- Container for final message -->
+            <div class="popup-container @lostStyle @poplostStyle" id="popup-container">
+                <div class="popup">
+                    <h2 id="final-message">@popMessage</h2><br/>
+                    <h3 id="final-message-reveal-word">...the word was: @finalWord</h3><br />
+                    <button id="play-button" @onclick="GameReset">Play Again</button>
+                </div>
+            </div>
+        </div>
+
+    <!-- Notification -->
+    <div class="notification-container @notificationState" id="notification-container">
+        <p>You have already entered this letter</p>
+    </div>
+</div>
+
+@code {
+
+    protected ElementReference myDiv;  // set by the @ref attribute
+
+    private string guess = "";
+    private string badGuess = "";
+    private string word = "";
+    private string lostStyle = "figure-part";
+    private int figureParts = 0;
+    private string finalWord = "";
+    private string notificationState = "";
+    private string poplostStyle = "";
+    private string popMessage = "Unfortunately you lost. 😕";
+
+    private HangUm.Services.WordService service = new Services.WordService();
+
+    private TimeSpan ts = new TimeSpan(0, 0, 3);
+
+    protected override Task OnInitializedAsync()
+    {
+        SetWord();
+        return base.OnInitializedAsync();
+    }
+
+    protected async override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("SetFocusToElement", myDiv);
+        }
+    }
+
+    protected void KeyDown(KeyboardEventArgs e)
+    {
+        string temp = e.Key;
+        //check to make sure valid key
+        if (temp.Length == 1 && char.IsLetter(temp[0]))
+        {
+            if (figureParts < 6)
+            {
+                //is char in word
+                if (word.Contains(temp, StringComparison.InvariantCultureIgnoreCase))
+                {
+                    var chars = guess.ToCharArray();
+                    for (int i = 0; i < word.Length; i++)
+                    {
+                        if (temp[0] == word[i])
+                        {
+                            chars[i] = temp[0];
+                        }
+                    }
+                    //set word back
+                    guess = new string(chars);
+                }
+                else
+                {
+                    //already guesses?
+                    if (!badGuess.Contains(temp, StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        if (string.IsNullOrEmpty(badGuess))
+                        {
+                            badGuess = $"{e.Key}";
+                            figureParts++;
+                        }
+                        else
+                        {
+                            badGuess = $"{badGuess},{e.Key}";
+                            figureParts++;
+                        }
+                    }
+                    else
+                    {
+                        //show message
+                        notificationState = "show";
+                        Timmer();
+                    }
+                }
+            }
+
+            //last try
+            if(guess == word)
+            {
+                //game over
+                lostStyle = "popup-show";
+                poplostStyle = "pop-show";
+                finalWord = word;
+                popMessage = "Congratulations! You won! 😃";
+            }
+            else if (figureParts == 6)
+            {
+                lostStyle = "popup-show";
+                poplostStyle = "pop-show";
+                finalWord = word;
+                popMessage = "Unfortunately you lost. 😕";
+            }
+        }
+
+        if(temp.ToLower() == "enter" && figureParts == 6)
+        {
+            GameReset();
+        }
+        this.StateHasChanged();
+    }
+
+    private string SetBodyState(int index)
+    {
+        string result = "figure-part";
+
+        if (figureParts >= index)
+        {
+            result = "";
+        }
+        return result;
+    }
+
+    private async Task GameReset()
+    {
+        figureParts = 0;
+        lostStyle = "figure-part";
+        badGuess = "";
+        poplostStyle = "";
+        SetWord();
+        await JSRuntime.InvokeVoidAsync("SetFocusToElement", myDiv);
+        this.StateHasChanged();
+    }
+
+    private async Task Timmer()
+    {
+        while (ts > new TimeSpan())
+        {
+            await Task.Delay(1000);
+            ts = ts.Subtract(new TimeSpan(0, 0, 1));
+        }
+        await TimerElapsedHandler();
+        StateHasChanged();
+    }
+
+    private Task TimerElapsedHandler()
+    {
+        notificationState = "";
+        ts = new TimeSpan(0, 0, 3);
+        return Task.CompletedTask;
+    }
+
+    private void SetWord()
+    {
+        word = service.Get().Result;
+        guess = "";
+        //set guess
+        foreach (var c in word)
+        {
+            guess = guess + " ";
+        }
+    }
+}
