@@ -1,9 +1,12 @@
-using HangUm.Services;
+
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+
+//locals
+using HangUm.Services;
 
 namespace HangUm
 {
@@ -22,7 +25,6 @@ namespace HangUm
         {
             services.AddRazorPages();
             services.AddServerSideBlazor();
-            services.AddTransient<TimerService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

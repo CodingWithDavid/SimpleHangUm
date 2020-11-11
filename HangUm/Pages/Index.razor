@@ -147,7 +147,7 @@
                     {
                         //show message
                         notificationState = "show";
-                        Timmer();
+                        Timmer().Wait();
                     }
                 }
             }
@@ -172,7 +172,7 @@
 
         if(temp.ToLower() == "enter" && figureParts == 6)
         {
-            GameReset();
+            GameReset().Wait();
         }
         this.StateHasChanged();
     }
